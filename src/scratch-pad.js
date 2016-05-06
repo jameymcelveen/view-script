@@ -1,12 +1,71 @@
+////////NOTES/////////////
 /**
  * Created by jameym on 5/2/16.
  */
 
+// look at tidy js for html
+// http://stackoverflow.com/questions/3913355/how-to-format-tidy-beautify-in-javascript
+
+// var VueComponent = null;
+//
+// if (typeof module !== "undefined") {
+//     VueComponent = require('vue-component');
+//     if (!VueComponent) {
+//         var fs = require('fs');
+//         VueComponent = {};
+//         VueComponent.loadScript = function(url) {
+//             return fs.readFileSync(url, 'utf8');
+//         };
+//         VueComponent.import = vueComponentImport;
+//         module.exports = VueComponent;
+//     }
+// } else if (typeof window !== "undefined") {
+//     if (window.VueComponent === undefined) {
+//         VueComponent = {};
+//         VueComponent.loadScript = function(url) {
+//             console.log('not implemented');
+//             return '';
+//         };
+//         VueComponent.import = vueComponentImport;
+//         window.VueComponent = VueComponent;
+//     }
+// }
+//
+// function vueComponentImport(path) {
+//
+//     var _components = {};
+//
+//     function _import(url) {
+//         var cpName = "cp-demo";
+//         var cpScript = VueComponent.loadScript(url);
+//         cpScript = parseComponent(cpScript);
+//         _components[cpName] = _installComponentFunction(cpName, cpScript);
+//     }
+//
+//     function _installComponentFunction(name, script) {
+//         var result = [];
+//         console.log(script);
+//         result.push(';(function($vue){\n');
+//         result.push('var module = {exports:{}};\n');
+//         result.push(script);
+//         result.push('$vue.component("' + name + '", module.exports);\n');
+//         result.push('})(Vue);\n');
+//         return new Function(result.join(''));
+//     }
+//
+//     return _import(path);
+// }
+////////END-NOTES/////////////
+
+
+//////////////////////////////
+/// vue-compile.js
+//////////////////////////////
 ///
 /// need to add source map
 /// this looks promising
 /// https://github.com/mozilla/source-map/#generating-a-source-map
-    
+
 var fs = require('fs');
 
 var vueComponentText = fs.readFileSync('./example/cp-demo.vue', 'utf8');
@@ -295,4 +354,62 @@ function ToSource(the_obj) {             // wrapper to hide vars
     //         console.log("Name collision: window.toSrc already exists...");
     //     }
     // }
+}
+
+///// VUE_PARSE.js
+
+/**
+ * Created by jameym on 5/2/16.
+ */
+function ParseVueComponent(vueText) {
+
+    var vueLines = vueText.split('\n');
+
+    var tagStartTemplate = /^<template(.*?)>$/;
+    var tagEndTemplate = /^<\/template>$/;
+    var isTemplate = false;
+    var templateLines = [];
+
+    var tagStartScript = /^<script(.*?)>$/;
+    var tagEndScript = /^<\/script>$/;
+    var isScript = false;
+    var scriptLines = [];
+
+    for (var i = 0; i < vueLines.length; i++) {
+
+        if (!isTemplate && tagStartTemplate.test(vueLines[i])) {
+            isTemplate = true;
+        } else if (isTemplate && tagEndTemplate.test(vueLines[i])) {
+            isTemplate = false;
+        } else if (isTemplate) {
+            templateLines.push(vueLines[i].trim());
+        }
+
+        if (!isScript && tagStartScript.test(vueLines[i])) {
+            isScript = true;
+        } else if (isScript && tagEndScript.test(vueLines[i])) {
+            isScript = false;
+        } else if (isScript) {
+            scriptLines.push(vueLines[i]);
+        }
+    }
+
+    var templateText = templateLines.join('');
+    var scriptText = scriptLines.join('\n');
+
+    function stringReplaceAll(str, search, replacement) {
+        return str.split(search).join(replacement);
+    }
+
+    function createBrowserComponent(name, template, script) {
+        var result = [];
+        var cleanedTemplate = stringReplaceAll(template, '"', '\\"');
+        cleanedTemplate = stringReplaceAll(cleanedTemplate, '/', '\\/');
+        result.push('var template = "' + cleanedTemplate + '"\n');
+        result.push(script + '\n');
+        result.push('module.exports.template = template;\n');
+        return result.join('');
+    }
+
+    return createBrowserComponent('cp-demo', templateText, scriptText);
 }
